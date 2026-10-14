@@ -1,0 +1,128 @@
+/* ===== テーマ変数（ダーク既定） ===== */
+#ml-annotation-tooltip {
+  --bg: #1e1e2e;
+  --fg: #cdd6f4;
+  --accent: #89b4fa;
+  --border: #45475a;
+  --surface: #313244;
+  --surface-hover: #45475a;
+  --ok: #a6e3a1;
+  --error: #f38ba8;
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+/* 手動でライトを選んだとき */
+#ml-annotation-tooltip[data-theme="light"] {
+  --bg: #ffffff;
+  --fg: #313244;
+  --accent: #1e66f5;
+  --border: #d0d0d8;
+  --surface: #f0f0f4;
+  --surface-hover: #e2e2e8;
+  --ok: #40a02b;
+  --error: #e64553;
+  --shadow: rgba(0, 0, 0, 0.18);
+}
+
+/* 自動（OSがライトのとき） */
+@media (prefers-color-scheme: light) {
+  #ml-annotation-tooltip[data-theme="auto"] {
+    --bg: #ffffff;
+    --fg: #313244;
+    --accent: #1e66f5;
+    --border: #d0d0d8;
+    --surface: #f0f0f4;
+    --surface-hover: #e2e2e8;
+    --ok: #40a02b;
+    --error: #e64553;
+    --shadow: rgba(0, 0, 0, 0.18);
+  }
+}
+
+#ml-annotation-tooltip {
+  position: absolute;
+  z-index: 2147483647;
+  max-width: 320px;
+  min-width: 160px;
+  padding: 10px 14px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: "Segoe UI", "Hiragino Sans", sans-serif;
+  box-shadow: 0 6px 24px var(--shadow);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+#ml-annotation-tooltip:not(.visible) {
+  pointer-events: none;
+}
+
+#ml-annotation-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#ml-annotation-tooltip .ml-word {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+#ml-annotation-tooltip .ml-body {
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
+#ml-annotation-tooltip .ml-loading {
+  color: var(--ok);
+  font-size: 12px;
+}
+
+#ml-annotation-tooltip .ml-error {
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#ml-annotation-tooltip .ml-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+#ml-annotation-tooltip .ml-btn {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 0;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ml-annotation-tooltip .ml-btn:hover {
+  background: var(--surface-hover);
+}
+
+#ml-annotation-tooltip .ml-btn.liked {
+  color: var(--ok);
+}
+#ml-annotation-tooltip .ml-btn.liked svg polygon {
+  fill: currentColor;
+}

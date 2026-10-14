@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "多言語リアルタイム注釈 / Multilingual Live Annotation",
+  "version": "1.1.0",
+  "description": "Select text on any web page and get live annotations in your chosen language, powered by Chrome built-in AI or any OpenAI-compatible API.",
+  "permissions": ["storage", "contextMenus", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["i18n.js", "icons.js", "llm.js", "content.js"],
+      "css": ["tooltip.css"]
+    }
+  ],
+  "action": {
+    "default_title": "多言語リアルタイム注釈（クリックでパネルを開く）"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "commands": {
+    "annotate-selection": {
+      "suggested_key": {
+        "default": "Alt+A"
+      },
+      "description": "選択したテキストを解析 / Analyze selected text"
+    }
+  }
+}
