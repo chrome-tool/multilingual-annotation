@@ -4,38 +4,25 @@
   "version": "1.1.0",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
-  "permissions": [
-    "storage",
-    "contextMenus",
-    "sidePanel",
-    "tabs"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_icon": "icons/icon128.png",
+    "default_title": "__MSG_actionTitle__"
+  },
+  "permissions": ["storage", "contextMenus", "sidePanel", "tabs"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "i18n.js",
-        "icons.js",
-        "llm.js",
-        "prompts.js",
-        "content.js"
-      ],
-      "css": [
-        "tooltip.css"
-      ]
+      "matches": ["<all_urls>"],
+      "js": ["i18n.js", "icons.js", "llm.js", "prompts.js", "content.js"],
+      "css": ["tooltip.css"]
     }
   ],
-  "action": {
-    "default_title": "__MSG_actionTitle__"
-  },
   "side_panel": {
     "default_path": "sidepanel.html"
   },
