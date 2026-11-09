@@ -29,7 +29,7 @@ const viewingBanner = document.getElementById("viewingBanner");
 const exitViewBtn = document.getElementById("exitViewBtn");
 const screenChat = document.getElementById("screen-chat");
 
-// ===== ナビゲーションボタンに Lucide アイコンを注入 =====
+// ===== Inject Lucide icons into navigation buttons =====
 sidebarToggle.innerHTML = ICONS.bars3;
 backBtn.innerHTML = ICONS.chevronLeft;
 speakStopBtn.innerHTML = ICONS.speakerXMark;
@@ -43,11 +43,10 @@ document.getElementById("scrollTopBtn").innerHTML = ICONS.arrowUp;
 document.getElementById("scrollBotBtn").innerHTML = ICONS.arrowDown;
 document.getElementById("chatSend").innerHTML = ICONS.arrowUp;
 document.getElementById("chatStop").innerHTML = ICONS.squareStop;
-document.getElementById("chatMicBtn").innerHTML = ICONS.mic;
 document.getElementById("chatAttachBtn").innerHTML = ICONS.paperclip;
 document.getElementById("chatThinkBtn").innerHTML = ICONS.lightbulb;
 
-// ===== 画面ナビゲーション =====
+// ===== Screen navigation =====
 function showScreen(name) {
   document
     .querySelectorAll(".screen")
@@ -151,17 +150,23 @@ const API_PRESETS = {
   custom: null,
 };
 
-// o-series モデルかどうか判定（ネイティブ推論モデル）
+// Detect o-series models (native reasoning models)
 function isOSeriesModel(model) {
   return /^o\d/.test(model || "");
 }
 
-// --- テーマ適用（auto / dark / light） ---
+// --- Apply theme (auto / dark / light) ---
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
 }
 
-// --- UIを選択言語で描画 ---
+// Set an element's text by id/i18n key, skipping missing elements
+function setText(id, key) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = t(lang, key);
+}
+
+// --- Render UI in the selected language ---
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -173,7 +178,7 @@ function applyLang() {
     `${ICONS.download} ${t(lang, "exportCsv")}`;
   document.getElementById("clearBtn").innerHTML =
     `${ICONS.trash} ${t(lang, "clearAll")}`;
-  // アイコン付きラベル（絵文字なし）
+  // Labels with icons (no emoji)
   document.getElementById("appHeading").innerHTML =
     `${ICONS.globe} ${t(lang, "appHeading")}`;
   document.getElementById("labelReadAloud").innerHTML =
@@ -200,9 +205,50 @@ function applyLang() {
     );
   setDelayLabel(Number(delaySlider.value));
   renderVocab();
-  // チャットが空のときだけ案内文を今の言語で描き直す
+  // Re-render the empty chat prompt only when the chat is empty
   if (chatMessages.querySelector(".chat-empty")) renderChatEmpty();
   updateChatBadge();
+
+  // Chrome AI setup section
+  setText("chromeAiSetupTitle", "chromeAiSetupTitle");
+  const chromeAiStatusEl = document.getElementById("chromeAiStatus");
+  if (chromeAiStatusEl) {
+    if (
+      chromeAiStatusEl.classList.contains("available") &&
+      !chromeAiStatusEl.classList.contains("unavailable")
+    ) {
+      chromeAiStatusEl.textContent = t(lang, "chromeAiStatusAvailable");
+    } else if (chromeAiStatusEl.classList.contains("unavailable")) {
+      chromeAiStatusEl.textContent = t(lang, "chromeAiStatusUnavailable");
+    } else {
+      chromeAiStatusEl.textContent = t(lang, "chromeAiStatusChecking");
+    }
+  }
+  setText("chromeAiStep1Desc", "chromeAiStep1");
+  setText("chromeAiStep2Desc", "chromeAiStep2");
+  setText("chromeAiStep3Desc", "chromeAiStep3");
+  setText("chromeAiRestart", "chromeAiRestart");
+  document.querySelectorAll(".step-open-btn").forEach((btn) => {
+    btn.textContent = t(lang, "chromeAiStepOpen");
+  });
+
+  // Guide overlay
+  setText("guideTitleEl", "guideTitle");
+  setText("guideTabOverview", "guideTabOverview");
+  setText("guideTabAnnotation", "guideTabAnnotation");
+  setText("guideTabChat", "guideTabChat");
+  setText("guideTabChromeAI", "guideTabChromeAI");
+  setText("guideOverviewDesc", "guideOverviewDesc");
+  setText("guideAnnotationDesc", "guideAnnotationDesc");
+  setText("guideChatDesc", "guideChatDesc");
+  setText("guideChromeAIDesc", "guideChromeAIDesc");
+  setText("guideStep1Desc", "chromeAiStep1");
+  setText("guideStep2Desc", "chromeAiStep2");
+  setText("guideStep3Desc", "chromeAiStep3");
+  setText("guideRestart", "chromeAiRestart");
+  document.querySelectorAll(".guide-step-open-btn").forEach((btn) => {
+    btn.textContent = t(lang, "chromeAiStepOpen");
+  });
 }
 
 function applyPreset(preset) {
@@ -226,8 +272,9 @@ function applyPreset(preset) {
   chrome.storage.sync.set({ apiEndpoint, apiKey, modelName });
 }
 
-// --- 設定の読み込み ---
-chrome.storage.sync.get(DEFAULTS, (s) => {
+// --- Load settings ---
+chrome.storage.sync.get(DEFAULTS, async (s) => {
+  await localeReady;
   lang = s.lang;
   aiProvider = s.aiProvider;
   apiEndpoint = s.apiEndpoint;
@@ -246,7 +293,7 @@ chrome.storage.sync.get(DEFAULTS, (s) => {
   setProviderUI(s.aiProvider);
   setDelayLabel(s.hoverDelay);
 
-  // フィールドに保存済みの値を反映
+  // Restore saved values to form fields
   const epEl = document.getElementById("apiEndpoint");
   const akEl = document.getElementById("apiKey");
   const mnEl = document.getElementById("modelName");
@@ -268,15 +315,14 @@ chrome.storage.sync.get(DEFAULTS, (s) => {
   applyLang();
 });
 
-// --- 言語変更（UI・ツールチップ・AI出力をまとめて切替） ---
+// --- Language change (switches UI, tooltips, and AI output language together) ---
 langSelect.addEventListener("change", () => {
   lang = langSelect.value;
   chrome.storage.sync.set({ lang });
-  resetChatSession(); // 新しい言語でチャットを再開
   applyLang();
 });
 
-// --- テーマ変更 ---
+// --- Theme change ---
 themeSelect.addEventListener("change", () => {
   chrome.storage.sync.set({ theme: themeSelect.value });
   applyTheme(themeSelect.value);
@@ -300,18 +346,18 @@ document.getElementById("chatThemeBtn").addEventListener("click", () => {
   updateThemeBtn();
 });
 
-// --- ReadAloud 設定 ---
+// --- Read-aloud settings ---
 function getSpeechLangCode(text = "") {
   if (speechLang !== "auto") return speechLang;
-  // テキストの文字種から言語を推定
+  // Infer language from character type in the text
   if (text) {
-    const hasKana = /[぀-ゟ゠-ヿ]/.test(text); // ひらがな・カタカナ
-    const hasCJK = /[一-鿿㐀-䶿]/.test(text); // 漢字
+    const hasKana = /[぀-ゟ゠-ヿ]/.test(text); // Hiragana / Katakana
+    const hasCJK = /[一-鿿㐀-䶿]/.test(text); // CJK ideographs
     if (hasKana) return "ja-JP";
     if (hasCJK) return "zh-CN";
     if (/[A-Za-z]/.test(text)) return "en-US";
   }
-  // テキスト不明の場合は UI 言語にフォールバック
+  // Fall back to the UI language when text is unknown
   const UI_LANG = { ja: "ja-JP", en: "en-US", zh: "zh-CN" };
   return UI_LANG[lang] || "en-US";
 }
@@ -336,12 +382,12 @@ document.getElementById("speechLang").addEventListener("change", (e) => {
   chrome.storage.sync.set({ speechLang });
 });
 
-// --- 有効/無効 ---
+// --- Enable / Disable ---
 enabledToggle.addEventListener("change", () => {
   chrome.storage.sync.set({ enabled: enabledToggle.checked });
 });
 
-// --- トリガーモード ---
+// --- Trigger mode ---
 document.querySelectorAll('input[name="trigger"]').forEach((radio) => {
   radio.addEventListener("change", () => {
     chrome.storage.sync.set({ triggerMode: radio.value });
@@ -359,10 +405,11 @@ function setTriggerUI(mode) {
   delayRow.style.display = mode === "hover" ? "block" : "none";
 }
 
-// --- AIプロバイダー ---
+// --- AI provider ---
 const cardBuiltin = document.getElementById("card-builtin");
 const cardExternal = document.getElementById("card-external");
 const externalSettings = document.getElementById("externalSettings");
+const chromeAiSetup = document.getElementById("chromeAiSetup");
 
 function setProviderUI(provider) {
   cardBuiltin.classList.toggle("active", provider === "builtin");
@@ -370,25 +417,82 @@ function setProviderUI(provider) {
   cardBuiltin.querySelector("input").checked = provider === "builtin";
   cardExternal.querySelector("input").checked = provider === "external";
   externalSettings.style.display = provider === "external" ? "block" : "none";
+  chromeAiSetup.style.display = provider === "builtin" ? "block" : "none";
+  if (provider === "builtin") checkChromeAiAvailability();
 }
+
+async function checkChromeAiAvailability() {
+  const badge = document.getElementById("chromeAiStatus");
+  if (!badge) return;
+  badge.className = "ai-status-badge checking";
+  badge.textContent = t(lang, "chromeAiStatusChecking");
+  try {
+    const api = getLanguageModelAPI();
+    if (!api) {
+      badge.className = "ai-status-badge unavailable";
+      badge.textContent = t(lang, "chromeAiStatusUnavailable");
+      return;
+    }
+    if (typeof api.availability === "function") {
+      const avail = await api.availability({
+        expectedInputs: [{ type: "text", languages: ["en"] }],
+        expectedOutputs: [{ type: "text", languages: ["en"] }],
+      });
+      if (avail === "no") {
+        badge.className = "ai-status-badge unavailable";
+        badge.textContent = t(lang, "chromeAiStatusUnavailable");
+      } else {
+        badge.className = "ai-status-badge available";
+        badge.textContent = t(lang, "chromeAiStatusAvailable");
+      }
+    } else if (typeof api.capabilities === "function") {
+      const cap = await api.capabilities();
+      if (cap?.available === "no") {
+        badge.className = "ai-status-badge unavailable";
+        badge.textContent = t(lang, "chromeAiStatusUnavailable");
+      } else {
+        badge.className = "ai-status-badge available";
+        badge.textContent = t(lang, "chromeAiStatusAvailable");
+      }
+    } else {
+      badge.className = "ai-status-badge available";
+      badge.textContent = t(lang, "chromeAiStatusAvailable");
+    }
+  } catch {
+    badge.className = "ai-status-badge unavailable";
+    badge.textContent = t(lang, "chromeAiStatusUnavailable");
+  }
+}
+
+// "Open" buttons for Chrome flags/components
+document
+  .querySelectorAll(".step-open-btn, .guide-step-open-btn")
+  .forEach((btn) => {
+    btn.addEventListener("click", () => {
+      try {
+        chrome.tabs.create({ url: btn.dataset.url });
+      } catch (e) {
+        console.warn("[ChromeAI] tabs.create failed:", e);
+      }
+    });
+  });
 
 document.querySelectorAll('input[name="aiProvider"]').forEach((radio) => {
   radio.addEventListener("change", () => {
     aiProvider = radio.value;
     chrome.storage.sync.set({ aiProvider });
     setProviderUI(aiProvider);
-    resetChatSession(); // プロバイダー変更でセッションリセット
   });
 });
 
-// プリセット変更: エンドポイント・モデルを自動入力
+// Preset change: auto-fill endpoint and model name
 document.getElementById("apiPreset").addEventListener("change", (e) => {
   apiPreset = e.target.value;
   chrome.storage.sync.set({ apiPreset });
   applyPreset(apiPreset);
 });
 
-// テキストフィールドはフォーカスを外したときに保存（毎キー押下は避ける）
+// Save text fields on blur, not on every keystroke
 function setPresetCustomIfChanged() {
   const prEl = document.getElementById("apiPreset");
   if (prEl && prEl.value !== "custom") {
@@ -414,7 +518,7 @@ document.getElementById("modelName").addEventListener("blur", (e) => {
   setPresetCustomIfChanged();
 });
 
-// --- 反応速度スライダー ---
+// --- Hover-delay slider ---
 delaySlider.addEventListener("input", () => {
   const v = Number(delaySlider.value);
   setDelayLabel(v);
@@ -425,7 +529,7 @@ function setDelayLabel(ms) {
   delayValue.textContent = (ms / 1000).toFixed(1) + t(lang, "secondsUnit");
 }
 
-// --- 単語帳 ---
+// --- Vocabulary list ---
 function renderVocab() {
   chrome.storage.local.get({ vocabulary: [] }, (data) => {
     const all = data.vocabulary;
@@ -436,7 +540,7 @@ function renderVocab() {
       return;
     }
 
-    // 検索フィルタ（単語・注釈の両方を対象）
+    // Search filter targeting both word and annotation
     const q = vocabSearch.value.trim().toLowerCase();
     const list = q
       ? all.filter(
@@ -446,7 +550,7 @@ function renderVocab() {
         )
       : all;
 
-    // 元配列でのインデックスを保持して削除が正しく効くようにする
+    // Preserve original array indices so deletion works correctly
     vocabList.innerHTML = list
       .map(
         (v) => `
@@ -463,7 +567,7 @@ function renderVocab() {
 
 vocabSearch.addEventListener("input", renderVocab);
 
-// 個別削除
+// Individual item deletion
 vocabList.addEventListener("click", async (e) => {
   const btn = e.target.closest(".vdel");
   if (!btn) return;
@@ -482,7 +586,7 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
-// --- CSV 書き出し ---
+// --- Export CSV ---
 document.getElementById("exportBtn").addEventListener("click", () => {
   chrome.storage.local.get({ vocabulary: [] }, (data) => {
     if (data.vocabulary.length === 0) return;
@@ -503,21 +607,19 @@ document.getElementById("exportBtn").addEventListener("click", () => {
   });
 });
 
-// --- 全消去 ---
+// --- Clear all ---
 document.getElementById("clearBtn").addEventListener("click", async () => {
   const ok = await showConfirm(t(lang, "confirmClear"));
   if (!ok) return;
   chrome.storage.local.set({ vocabulary: [] }, renderVocab);
 });
 
-// 単語帳の変更を監視して自動更新
+// Watch for vocabulary changes and re-render automatically
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.vocabulary) renderVocab();
 });
 
-// ===== チャット（Prompt API で何でも会話） =====
-let chatSession = null;
-let chatSessionPromise = null;
+// ===== Chat (general conversation via Prompt API) =====
 let chatBusy = false;
 let chatAbort = null;
 let activeBubbleWrap = null;
@@ -525,11 +627,10 @@ let wasManuallyStopped = false;
 let chatHistory = []; // [{ role: 'user'|'assistant', text: string }]
 
 const CHAT_SESSIONS_KEY = "chatSessions";
-const CHAT_CONTEXT_LIMIT = Infinity;
 const MAX_SESSIONS = 50;
 
-let chatSessions = []; // 全セッション配列
-let activeSessionId = null; // 現在開いているセッションのID（null=新規未保存）
+let chatSessions = []; // All sessions array
+let activeSessionId = null; // ID of the currently open session (null = new, unsaved)
 
 // ===== Markdown → HTML (line-by-line parser) =====
 function markdownToHtml(text) {
@@ -558,18 +659,18 @@ function markdownToHtml(text) {
     s = s.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
     s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
     s = s.replace(/_([^_\n]+?)_/g, "<em>$1</em>");
-    // 画像: ![alt](url) — リンクより先に処理（data: URL も対応）
+    // Images: ![alt](url) — process before links (data:, blob:, https URLs supported)
     s = s.replace(
-      /!\[([^\]]*)\]\(((?:https?:\/\/|data:)[^)]+)\)/g,
+      /!\[([^\]]*)\]\(((?:https?:\/\/|data:|blob:)[^)]+)\)/g,
       (_, alt, url) => `<img src="${url}" alt="${alt}" class="md-img">`,
     );
-    // リンク: [text](url)
+    // Links: [text](url)
     s = s.replace(
       /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
       (_, label, url) =>
         `<a href="${url}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`,
     );
-    // 裸URL: https://... をそのままリンク化
+    // Bare URLs: auto-link https://...
     s = s.replace(
       /(?<![="'])https?:\/\/[^\s<>"]+/g,
       (url) =>
@@ -708,18 +809,15 @@ function formatDate(iso) {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function chatSystemPrompt() {
-  return `You are a helpful, friendly assistant. Reply in ${t(lang, "aiLangName")} unless the user clearly writes in another language. Always format your response using Markdown: use **bold** for key terms, *italic* for emphasis, - bullet lists for multiple items, 1. numbered lists for steps, # headings for sections, and \`code\` for technical terms. Be concise and clear.`;
-}
-
-// 現在のメッセージをセッションに保存（メッセージ送受信のたびに呼ぶ）
+// Persist current messages to storage (call after every send/receive)
 function saveChatHistory() {
   const title =
-    chatHistory.find((m) => m.role === "user")?.text?.slice(0, 50) || "(無題)";
+    chatHistory.find((m) => m.role === "user")?.text?.slice(0, 50) ||
+    "(Untitled)";
   const now = new Date().toISOString();
 
   if (!activeSessionId) {
-    // 初回: 新規セッション作成
+    // First save: create a new session
     const id = Date.now();
     activeSessionId = id;
     chatSessions = [
@@ -736,7 +834,7 @@ function saveChatHistory() {
         messages: [...chatHistory],
       };
       chatSessions.splice(idx, 1);
-      chatSessions.unshift(updated); // 最新を先頭へ
+      chatSessions.unshift(updated); // Move updated session to the front
     }
   }
   chatSessions = chatSessions.slice(0, MAX_SESSIONS);
@@ -750,66 +848,128 @@ function clearChatHistory() {
   updateChatBadge();
 }
 
-// Chrome内蔵AI用: 毎回フルコンテキストでセッションを新規作成する
-// （セッション内部蓄積に頼らず外部APIと同等の明示的コンテキスト管理）
+// For Chrome built-in AI: create a fresh session each time with full context
+// (Explicit context management equivalent to external API, not relying on session accumulation)
 async function createBuiltinSession() {
-  const api =
-    self.LanguageModel ?? self.ai?.languageModel ?? self.ai?.assistant;
+  const api = getLanguageModelAPI();
   if (!api) return null;
 
-  const systemPrompt = chatSystemPrompt();
-  // chatHistory には現在のユーザーメッセージが末尾に push 済みなので除外
+  // Check model availability upfront
+  if (typeof api.availability === "function") {
+    try {
+      const avail = await api.availability();
+      if (avail === "no") return null;
+      if (avail === "after-download") return "downloading";
+    } catch {
+      /* Ignore versions that do not support availability */
+    }
+  } else if (typeof api.capabilities === "function") {
+    try {
+      const cap = await api.capabilities();
+      if (cap?.available === "no") return null;
+      if (cap?.available === "after-download") return "downloading";
+    } catch {
+      /* Same as above */
+    }
+  }
+
+  // chatHistory already has the current user message appended at the end, so exclude it
   const contextMsgs = chatHistory.slice(0, -1).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.text,
   }));
 
-  const SUPPORTED_OUT_LANGS = ["de", "en", "es", "fr", "ja"];
-  const outLang = SUPPORTED_OUT_LANGS.includes(lang) ? lang : "en";
   const tryCreate = (prompts) =>
-    api.create({
-      initialPrompts: prompts,
-      systemPrompt,
-      expectedOutputLanguages: [outLang],
-    });
+    createAISession(lang, { contextPrompts: prompts });
 
   try {
     return await tryCreate(contextMsgs);
   } catch {
-    // コンテキスト過多の場合は直近20件に絞って再試行
+    // If context is too large, retry with only the last 20 messages
     try {
       return await tryCreate(contextMsgs.slice(-20));
     } catch (e) {
-      console.warn("[チャット] セッション作成失敗:", e);
+      console.warn("[chat] Failed to create AI session:", e);
       return null;
     }
   }
 }
 
-function resetChatSession() {
-  // セッションはリクエストごとに破棄するようになったので何もしない
-  // （言語・プロバイダー変更時も履歴は保持）
-}
-
 function newConversation() {
   stopChatSpeak();
-  resetChatSession();
   clearChatHistory();
-  activeSessionId = null; // 次の送信で自動的に新セッション作成
+  activeSessionId = null; // A new session will be created automatically on the next send
   renderChatEmpty();
   favoritesPanel.hidden = true;
   if (chatSidebar.classList.contains("open")) renderSidebar();
+}
+
+async function retryLastMessage(aiBubbleWrap) {
+  if (chatBusy) return;
+  // Find the last AI bubble and the user message just before it
+  const allMsgEls = [...chatMessages.children].filter(
+    (el) =>
+      el.classList.contains("chat-bubble-wrap") ||
+      el.classList.contains("chat-msg-outer"),
+  );
+  const aiIdx = allMsgEls.indexOf(aiBubbleWrap);
+  if (aiIdx < 0) return;
+
+  // Remove AI bubble from DOM and history
+  aiBubbleWrap.remove();
+  if (
+    chatHistory.length &&
+    chatHistory[chatHistory.length - 1].role !== "user"
+  ) {
+    chatHistory.pop();
+  }
+
+  // Remove preceding user bubble and restore its content to input
+  const userEl = allMsgEls[aiIdx - 1];
+  if (userEl) {
+    const histEntry = chatHistory[chatHistory.length - 1];
+    if (histEntry?.role === "user") {
+      // Restore text to input
+      chatInput.value = histEntry.text || "";
+      autoGrowChat();
+
+      // Reconstruct attachedFiles from serialized attachments
+      if (histEntry.attachments?.length) {
+        attachedFiles = await Promise.all(
+          histEntry.attachments.map(async (a) => {
+            if (a.type === "image" && a.dataUrl) {
+              const res = await fetch(a.dataUrl);
+              const blob = await res.blob();
+              const previewUrl = URL.createObjectURL(blob);
+              return { name: a.name, type: "image", content: blob, previewUrl };
+            }
+            if (a.type === "text" && a.content !== undefined) {
+              return { name: a.name, type: "text", content: a.content };
+            }
+            return null;
+          }),
+        );
+        attachedFiles = attachedFiles.filter(Boolean);
+        renderAttachPreview();
+      }
+
+      // Remove user message from DOM and history
+      userEl.remove();
+      chatHistory.pop();
+    }
+  }
+
+  sendChat();
 }
 
 function branchFromMessage(msgIdx) {
   const branchHistory = chatHistory.slice(0, msgIdx + 1);
   if (!branchHistory.length) return;
   stopChatSpeak();
-  resetChatSession();
   activeSessionId = null;
   chatHistory = branchHistory;
   renderChatHistory();
-  saveChatHistory(); // 新セッションとして保存
+  saveChatHistory(); // Save as a new session
   chatAutoScroll = true;
   scrollToBottom(true);
   if (chatSidebar.classList.contains("open")) renderSidebar();
@@ -819,7 +979,6 @@ function switchToSession(id) {
   const session = chatSessions.find((s) => s.id === id);
   if (!session || id === activeSessionId) return;
   stopChatSpeak();
-  resetChatSession();
   activeSessionId = session.id;
   chatHistory = [...session.messages];
   if (chatHistory.length > 0) renderChatHistory();
@@ -833,10 +992,9 @@ function deleteSession(id) {
   chatSessions = chatSessions.filter((s) => s.id !== id);
   chrome.storage.local.set({ [CHAT_SESSIONS_KEY]: chatSessions });
   if (activeSessionId === id) {
-    // 削除対象が現在開いているセッションなら新規へ
+    // If the deleted session is the currently open one, start a new conversation
     activeSessionId = chatSessions[0]?.id ?? null;
     chatHistory = activeSessionId ? [...(chatSessions[0]?.messages ?? [])] : [];
-    resetChatSession();
     if (chatHistory.length > 0) renderChatHistory();
     else renderChatEmpty();
   }
@@ -851,7 +1009,7 @@ function renderChatEmpty() {
 function renderChatHistory() {
   chatMessages.innerHTML = "";
   chatHistory.forEach((m) =>
-    addBubble(m.role === "user" ? "user" : "ai", m.text),
+    addBubble(m.role === "user" ? "user" : "ai", m.text, m.attachments),
   );
 }
 
@@ -861,7 +1019,82 @@ function getAiAvatarIcon() {
   return cloudPresets.includes(apiPreset) ? ICONS.bot : ICONS.cpu;
 }
 
-function addBubble(role, text) {
+// Build the attachment section for a user bubble (images with preview+download,
+// text/audio files with a download button). Returns the element, or null when empty.
+function renderAttachmentSection(role, attachments) {
+  if (role !== "user" || !attachments?.length) return null;
+  const section = document.createElement("div");
+  section.className = "msg-attachments";
+  for (const a of attachments) {
+    const imgSrc = a.dataUrl ?? a.url ?? null;
+    if (a.type === "image") {
+      if (imgSrc) {
+        const wrap = document.createElement("div");
+        wrap.className = "attach-img-wrap";
+        const img = document.createElement("img");
+        img.src = imgSrc;
+        img.alt = a.name;
+        img.className = "md-img";
+        wrap.appendChild(img);
+        const dlBtn = document.createElement("button");
+        dlBtn.className = "attach-img-dl";
+        dlBtn.title = "Download";
+        dlBtn.innerHTML = ICONS.download;
+        dlBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const link = document.createElement("a");
+          link.href = imgSrc;
+          link.download = a.name;
+          link.click();
+        });
+        wrap.appendChild(dlBtn);
+        section.appendChild(wrap);
+      } else {
+        const chip = document.createElement("span");
+        chip.className = "attach-chip-ro";
+        chip.textContent = `🖼️ ${a.name}`;
+        section.appendChild(chip);
+      }
+    } else if (
+      (a.type === "text" || a.type === "audio") &&
+      a.content !== undefined
+    ) {
+      const btn = document.createElement("button");
+      btn.className = "attach-dl-btn";
+      btn.innerHTML = `${ICONS.fileText} <span>${escapeHtml(a.name)}</span>`;
+      btn.title = "Download";
+      btn.addEventListener("click", () => {
+        const blob =
+          a.content instanceof Blob
+            ? a.content
+            : new Blob([a.content], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = a.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+      section.appendChild(btn);
+    }
+  }
+  return section.children.length ? section : null;
+}
+
+// Build the action-button row shown under an AI bubble (speak/copy/like/branch/retry)
+function buildAIBubbleActions() {
+  const actions = document.createElement("div");
+  actions.className = "chat-msg-actions";
+  actions.innerHTML =
+    `<button class="msg-btn" data-action="speak"  title="${t(lang, "speakTitle")}">${ICONS.speakerWave}</button>` +
+    `<button class="msg-btn" data-action="copy"   title="${t(lang, "copyMsgTitle")}">${ICONS.clipboard}</button>` +
+    `<button class="msg-btn" data-action="like"   title="${t(lang, "likeTitle")}">${ICONS.star}</button>` +
+    `<button class="msg-btn branch-btn" data-action="branch" title="${t(lang, "branchTitle")}">${ICONS.gitBranch}</button>` +
+    `<button class="msg-btn" data-action="retry"  title="Retry">${ICONS.rotateCcw}</button>`;
+  return actions;
+}
+
+function addBubble(role, text, attachments) {
   const empty = chatMessages.querySelector(".chat-empty");
   if (empty) empty.remove();
 
@@ -872,12 +1105,15 @@ function addBubble(role, text) {
   if (role === "ai") {
     const parsed = parseThinking(text);
     thinkContent = parsed.think;
-    const answer = parsed.think !== null ? parsed.answer : text;
-    msgDiv.innerHTML = markdownToHtml(answer);
-    msgDiv.dataset.md = answer;
+    msgDiv.innerHTML = markdownToHtml(parsed.answer);
+    msgDiv.dataset.md = parsed.answer;
   } else {
     msgDiv.innerHTML = markdownToHtml(text);
   }
+
+  // Render attachments (user bubbles only)
+  const attachSection = renderAttachmentSection(role, attachments);
+  if (attachSection) msgDiv.appendChild(attachSection);
 
   const avatar = document.createElement("div");
   avatar.className = "msg-avatar";
@@ -902,15 +1138,14 @@ function addBubble(role, text) {
       thinkSection.className = "chat-think-section finalized";
       buildThinkToggle(thinkSection, thinkContent);
       wrap.appendChild(thinkSection);
+
+      const answerTag = document.createElement("div");
+      answerTag.className = "answer-section-tag";
+      answerTag.innerHTML = `${ICONS.messageSquare}<span>${t(lang, "answerTab")}</span>`;
+      wrap.appendChild(answerTag);
     }
 
-    const actions = document.createElement("div");
-    actions.className = "chat-msg-actions";
-    actions.innerHTML =
-      `<button class="msg-btn" data-action="speak"  title="${t(lang, "speakTitle")}">${ICONS.speakerWave}</button>` +
-      `<button class="msg-btn" data-action="copy"   title="${t(lang, "copyMsgTitle")}">${ICONS.clipboard}</button>` +
-      `<button class="msg-btn" data-action="like"   title="${t(lang, "likeTitle")}">${ICONS.star}</button>` +
-      `<button class="msg-btn branch-btn" data-action="branch" title="${t(lang, "branchTitle")}">${ICONS.gitBranch}</button>`;
+    const actions = buildAIBubbleActions();
 
     wrap.appendChild(outer);
     wrap.appendChild(actions);
@@ -923,44 +1158,99 @@ function addBubble(role, text) {
   return msgDiv;
 }
 
-// ===== DEEP思考（<think> ブロック）=====
+// ===== Deep thinking (<think> blocks) =====
+
+// Fallback: strip orphaned <answer> tags when model doesn't use the structured format
+function stripAnswerTags(text) {
+  return text
+    .replace(/<answer>/gi, "")
+    .replace(/<\/answer>/gi, "")
+    .trim();
+}
 
 function parseThinking(text) {
-  // <think> が先頭以外でも対応（モデルが前置きを出す場合）
-  const startIdx = text.search(/<think(?:ing)?>/i);
-  if (startIdx === -1) return { think: null, answer: text, partial: false };
+  const thinkStart = text.search(/<think(?:ing)?>/i);
 
-  const before = text.slice(0, startIdx).trim();
-  const rest = text.slice(startIdx);
-  const complete = rest.match(
-    /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>\s*([\s\S]*)/i,
-  );
-  if (complete) {
-    const answer = [before, complete[2].trim()].filter(Boolean).join("\n\n");
-    return { think: complete[1].trim(), answer, partial: false };
+  // No <think> tag — check for a bare <answer> block
+  if (thinkStart === -1) {
+    const answerOnly = text.match(/<answer>([\s\S]*?)<\/answer>/i);
+    if (answerOnly)
+      return { think: null, answer: answerOnly[1].trim(), partial: false };
+    return { think: null, answer: stripAnswerTags(text), partial: false };
   }
-  // ストリーミング中（閉じタグなし）
+
+  // Strip any <answer>...</answer> block that appeared *before* <think> (model output misordering)
+  const before = stripAnswerTags(text.slice(0, thinkStart).trim());
+  const rest = text.slice(thinkStart);
+
+  // Complete <think>...</think> found
+  const thinkComplete = rest.match(
+    /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>([\s\S]*)/i,
+  );
+  if (thinkComplete) {
+    const thinkContent = thinkComplete[1].trim();
+    const afterThink = thinkComplete[2];
+
+    // Preferred format: <answer>...</answer> present
+    const answerComplete = afterThink.match(/<answer>([\s\S]*?)<\/answer>/i);
+    if (answerComplete) {
+      const rawAnswer = [before, answerComplete[1].trim()]
+        .filter(Boolean)
+        .join("\n\n");
+      return { think: thinkContent, answer: rawAnswer, partial: false };
+    }
+
+    // <answer> opened but not yet closed (still streaming answer)
+    const answerPartial = afterThink.match(/<answer>([\s\S]*)/i);
+    if (answerPartial) {
+      const rawAnswer = [before, answerPartial[1]].filter(Boolean).join("\n\n");
+      return { think: thinkContent, answer: rawAnswer, partial: false };
+    }
+
+    // No <answer> tags — use text after </think> as fallback
+    const rawAnswer = [before, afterThink.trim()].filter(Boolean).join("\n\n");
+    return {
+      think: thinkContent,
+      answer: stripAnswerTags(rawAnswer),
+      partial: false,
+    };
+  }
+
+  // <think> is still streaming — suppress preamble from answer area until thinking is done
   const partial = rest.match(/<think(?:ing)?>([\s\S]*)/i);
-  if (partial) return { think: partial[1], answer: before, partial: true };
-  return { think: null, answer: text, partial: false };
+  if (partial) return { think: partial[1], answer: "", partial: true };
+  return { think: null, answer: stripAnswerTags(text), partial: false };
 }
 
 function buildThinkToggle(sectionEl, thinkText) {
   sectionEl.innerHTML = "";
 
-  const label = document.createElement("div");
-  label.className = "think-section-tag";
-  label.innerHTML = `${ICONS.lightbulb}<span>${t(lang, "thinkTab")}</span>`;
+  const toggle = document.createElement("button");
+  toggle.className = "think-section-tag think-toggle-btn";
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.innerHTML = `${ICONS.lightbulb}<span>${t(lang, "thinkHideProcess")}</span>${ICONS.chevronDown}`;
 
   const contentDiv = document.createElement("div");
   contentDiv.className = "chat-think-content";
   contentDiv.innerHTML = markdownToHtml(thinkText);
+  contentDiv.hidden = false;
 
-  sectionEl.appendChild(label);
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    const next = !expanded;
+    toggle.setAttribute("aria-expanded", String(next));
+    contentDiv.hidden = !next;
+    toggle.querySelector("span").textContent = next
+      ? t(lang, "thinkHideProcess")
+      : t(lang, "thinkSeeProcess");
+  });
+
+  sectionEl.appendChild(toggle);
   sectionEl.appendChild(contentDiv);
 }
 
 function renderAIBubbleContent(aiBubble, bubbleWrap, fullText) {
+  if (!fullText?.trim()) return; // Ignore empty chunks (e.g., Gemini Nano's final empty flush)
   const { think, answer, partial } = parseThinking(fullText);
 
   if (think !== null) {
@@ -968,7 +1258,7 @@ function renderAIBubbleContent(aiBubble, bubbleWrap, fullText) {
     if (!section) {
       section = document.createElement("div");
       section.className = "chat-think-section";
-      bubbleWrap.prepend(section); // 常に先頭（回答の上）に配置
+      bubbleWrap.prepend(section); // Always place at the top (above the answer)
     }
 
     if (partial) {
@@ -980,7 +1270,7 @@ function renderAIBubbleContent(aiBubble, bubbleWrap, fullText) {
     } else if (!section.classList.contains("finalized")) {
       section.className = "chat-think-section finalized";
       buildThinkToggle(section, think);
-      // 回答タグを .chat-msg-outer の直前に追加
+      // Insert the answer section tag just before .chat-msg-outer
       const outer = bubbleWrap.querySelector(".chat-msg-outer");
       if (outer && !bubbleWrap.querySelector(".answer-section-tag")) {
         const answerTag = document.createElement("div");
@@ -991,7 +1281,7 @@ function renderAIBubbleContent(aiBubble, bubbleWrap, fullText) {
       aiBubble.innerHTML = markdownToHtml(answer);
       aiBubble.dataset.md = answer;
     } else {
-      // finalized 済み（o-series: 思考完了後に回答が届くケース）
+      // Already finalized (o-series: answer arrives after thinking is complete)
       if (answer !== aiBubble.dataset.md) {
         aiBubble.innerHTML = markdownToHtml(answer);
         aiBubble.dataset.md = answer;
@@ -1000,25 +1290,25 @@ function renderAIBubbleContent(aiBubble, bubbleWrap, fullText) {
   } else {
     bubbleWrap.querySelector(".chat-think-section")?.remove();
     bubbleWrap.querySelector(".answer-section-tag")?.remove();
-    aiBubble.innerHTML = markdownToHtml(fullText);
-    aiBubble.dataset.md = fullText;
+    aiBubble.innerHTML = markdownToHtml(answer);
+    aiBubble.dataset.md = answer;
   }
 }
 
-// ===== チャット読み上げ =====
+// ===== Chat read-aloud =====
 let activeSpeakBtn = null;
 
 function speakMessage(text, btn) {
   if (!window.speechSynthesis) return;
 
-  // 別のボタンが喋っていたらリセット
+  // If a different button is already speaking, reset it
   if (activeSpeakBtn && activeSpeakBtn !== btn) {
     activeSpeakBtn.innerHTML = ICONS.speakerWave;
     activeSpeakBtn.removeAttribute("data-speaking");
     activeSpeakBtn = null;
   }
 
-  // 同じボタンを再クリック → トグル停止
+  // Same button clicked again → toggle off
   if (btn.dataset.speaking) {
     stopChatSpeak();
     return;
@@ -1059,14 +1349,14 @@ function stopChatSpeak() {
 
 speakStopBtn.addEventListener("click", stopChatSpeak);
 
-// ===== チャットお気に入り =====
+// ===== Chat favorites =====
 function likeChatMessage(text, btn) {
   if (!text) return;
   chrome.storage.local.get({ chatFavorites: [] }, (data) => {
     const favs = data.chatFavorites;
     const already = favs.findIndex((f) => f.text === text);
     if (already >= 0) {
-      // すでに保存済み → 削除（トグル）
+      // Already saved → remove (toggle off)
       favs.splice(already, 1);
       btn.classList.remove("liked");
       btn.innerHTML = ICONS.star;
@@ -1082,20 +1372,19 @@ function likeChatMessage(text, btn) {
   });
 }
 
-// メッセージエリアへのクリックを委譲（speak / like）
-chatMessages.addEventListener("click", (e) => {
-  // コードブロックのコピーボタン
+// Delegate clicks on the message area (speak / like)
+chatMessages.addEventListener("click", async (e) => {
+  // Copy button inside a code block
   const copyCodeBtn = e.target.closest(".code-copy-btn");
   if (copyCodeBtn) {
     const code = copyCodeBtn.closest(".code-block")?.querySelector("code");
     if (code) {
-      navigator.clipboard.writeText(code.textContent).then(() => {
-        const orig = copyCodeBtn.innerHTML;
-        copyCodeBtn.innerHTML = ICONS.check;
-        setTimeout(() => {
-          copyCodeBtn.innerHTML = orig;
-        }, 1500);
-      });
+      await navigator.clipboard.writeText(code.textContent);
+      const orig = copyCodeBtn.innerHTML;
+      copyCodeBtn.innerHTML = ICONS.check;
+      setTimeout(() => {
+        copyCodeBtn.innerHTML = orig;
+      }, 1500);
     }
     return;
   }
@@ -1112,16 +1401,15 @@ chatMessages.addEventListener("click", (e) => {
     likeChatMessage(msgEl.dataset.md ?? text, btn);
   if (btn.dataset.action === "copy") {
     const copyText = msgEl.dataset.md ?? text;
-    navigator.clipboard.writeText(copyText).then(() => {
-      const orig = btn.innerHTML;
-      btn.innerHTML = ICONS.check;
-      setTimeout(() => {
-        btn.innerHTML = orig;
-      }, 1500);
-    });
+    await navigator.clipboard.writeText(copyText);
+    const orig = btn.innerHTML;
+    btn.innerHTML = ICONS.check;
+    setTimeout(() => {
+      btn.innerHTML = orig;
+    }, 1500);
   }
   if (btn.dataset.action === "branch") {
-    // DOM上の順番からchatHistory内のインデックスを特定
+    // Determine the chatHistory index from DOM order
     const allMsgEls = [...chatMessages.children].filter(
       (el) =>
         el.classList.contains("chat-bubble-wrap") ||
@@ -1130,9 +1418,10 @@ chatMessages.addEventListener("click", (e) => {
     const msgIdx = allMsgEls.indexOf(wrap);
     if (msgIdx >= 0) branchFromMessage(msgIdx);
   }
+  if (btn.dataset.action === "retry") retryLastMessage(wrap);
 });
 
-// ===== スクロール制御（ChatGPT風：ユーザーが上スクロール中は追従しない） =====
+// ===== Scroll control (ChatGPT-style: no auto-follow while the user scrolls up) =====
 let chatAutoScroll = true;
 
 const scrollTopBtn = document.getElementById("scrollTopBtn");
@@ -1169,8 +1458,10 @@ function setChatUIBusy(busy) {
   if (!busy) scrollToBottom(true);
 }
 
-// ===== ファイル添付 =====
-let attachedFiles = []; // [{ name, type, content }]  content = base64 or text
+// ===== File attachments =====
+// image/audio: { name, type:'image'|'audio', content: Blob, previewUrl: string }
+// text:        { name, type:'text',           content: string }
+let attachedFiles = [];
 
 const chatAttachBtn = document.getElementById("chatAttachBtn");
 const chatFileInput = document.getElementById("chatFileInput");
@@ -1180,24 +1471,34 @@ chatAttachBtn?.addEventListener("click", () => chatFileInput?.click());
 
 chatFileInput?.addEventListener("change", async () => {
   for (const file of chatFileInput.files) {
-    if (attachedFiles.length >= 4) break; // 最大4ファイル
-    const isImage = file.type.startsWith("image/");
-    const content = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      if (isImage) reader.readAsDataURL(file);
-      else reader.readAsText(file);
-    });
-    attachedFiles.push({
-      name: file.name,
-      type: isImage ? "image" : "text",
-      content,
-    });
+    if (attachedFiles.length >= 4) break; // Maximum 4 files
+    if (file.type.startsWith("image/") || file.type.startsWith("audio/")) {
+      const previewUrl = file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : null;
+      attachedFiles.push({
+        name: file.name,
+        type: file.type.startsWith("audio/") ? "audio" : "image",
+        content: file,
+        previewUrl,
+      });
+    } else {
+      const text = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+      attachedFiles.push({ name: file.name, type: "text", content: text });
+    }
   }
   chatFileInput.value = "";
   renderAttachPreview();
 });
+
+function revokeAttachUrl(f) {
+  if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+}
 
 function renderAttachPreview() {
   if (!attachedFiles.length) {
@@ -1211,7 +1512,7 @@ function renderAttachPreview() {
     <div class="attach-chip" data-i="${i}">
       ${
         f.type === "image"
-          ? `<img src="${f.content}" class="attach-thumb" alt="${escapeHtml(f.name)}">`
+          ? `<img src="${f.previewUrl}" class="attach-thumb" alt="${escapeHtml(f.name)}">`
           : `${ICONS.fileText}<span class="attach-name">${escapeHtml(f.name)}</span>`
       }
       <button class="attach-rm" data-i="${i}">${ICONS.xMark}</button>
@@ -1220,36 +1521,66 @@ function renderAttachPreview() {
     .join("");
   chatAttachPrev.querySelectorAll(".attach-rm").forEach((btn) => {
     btn.addEventListener("click", () => {
+      revokeAttachUrl(attachedFiles[Number(btn.dataset.i)]);
       attachedFiles.splice(Number(btn.dataset.i), 1);
       renderAttachPreview();
     });
   });
 }
 
-const TEXT_FILE_MAX_CHARS = 12000; // 外部 API 用 ~3000 tokens
-const TEXT_FILE_MAX_CHARS_BUILTIN = 2000; // 内蔵 AI 用 ~500 tokens（Gemini Nano 上限対策）
+const TEXT_FILE_MAX_CHARS = 12000; // ~3000 tokens for external API
+const TEXT_FILE_MAX_CHARS_BUILTIN = 2000; // ~500 tokens for built-in AI (Gemini Nano limit)
 
-function buildUserContentWithAttachments(
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function buildUserContentWithAttachments(
   text,
   files = attachedFiles,
   forBuiltin = false,
 ) {
   if (!files.length) return text || "";
-  const effectiveText = text || "添付ファイルについて説明してください。";
-  const limit = forBuiltin ? TEXT_FILE_MAX_CHARS_BUILTIN : TEXT_FILE_MAX_CHARS;
+  const effectiveText = text || "Please describe the attached file.";
+
+  if (forBuiltin) {
+    // Chrome AI multipart format: [{ role, content: [{type, value}] }]
+    const contentParts = [{ type: "text", value: effectiveText }];
+    for (const f of files) {
+      if (f.type === "text") {
+        const body =
+          f.content.length > TEXT_FILE_MAX_CHARS_BUILTIN
+            ? f.content.slice(0, TEXT_FILE_MAX_CHARS_BUILTIN) +
+              `\n...(truncated, ${f.content.length - TEXT_FILE_MAX_CHARS_BUILTIN} chars omitted)`
+            : f.content;
+        contentParts[0].value += `\n\n---\n📄 ${f.name}:\n${body}`;
+      } else {
+        // f.content is already a Blob (File) — pass directly
+        contentParts.push({ type: f.type, value: f.content });
+      }
+    }
+    const hasMedia = contentParts.some((p) => p.type !== "text");
+    return hasMedia
+      ? [{ role: "user", content: contentParts }]
+      : contentParts[0].value;
+  }
+
+  // External API format (OpenAI-compatible)
   const parts = [{ type: "text", text: effectiveText }];
   for (const f of files) {
     if (f.type === "image") {
-      if (forBuiltin) {
-        parts[0].text += `\n[画像添付: ${f.name}（内蔵AIは画像非対応）]`;
-      } else {
-        parts.push({ type: "image_url", image_url: { url: f.content } });
-      }
-    } else {
+      const dataUrl = await blobToDataUrl(f.content);
+      parts.push({ type: "image_url", image_url: { url: dataUrl } });
+    } else if (f.type !== "audio") {
       const body =
-        f.content.length > limit
-          ? f.content.slice(0, limit) +
-            `\n...(以降省略 ${f.content.length - limit} 文字)`
+        f.content.length > TEXT_FILE_MAX_CHARS
+          ? f.content.slice(0, TEXT_FILE_MAX_CHARS) +
+            `\n...(truncated, ${f.content.length - TEXT_FILE_MAX_CHARS} chars omitted)`
           : f.content;
       parts[0].text += `\n\n---\n📄 ${f.name}:\n${body}`;
     }
@@ -1257,40 +1588,186 @@ function buildUserContentWithAttachments(
   return parts.length === 1 ? parts[0].text : parts;
 }
 
+// Stream a reply from the external OpenAI-compatible API into the AI bubble.
+// Returns the full response text.
+async function handleExternalChat({
+  aiBubble,
+  bubbleWrap,
+  signal,
+  pendingAttachments,
+  userContent,
+}) {
+  if (!apiEndpoint || !modelName)
+    throw new Error("Please configure the endpoint URL and model name.");
+  const oSeries = isOSeriesModel(modelName);
+  // When attachments exist, convert the last message to multipart content
+  const historyMessages = chatHistory.map((m, idx) => {
+    const isLast = idx === chatHistory.length - 1;
+    let content = isLast && pendingAttachments.length ? userContent : m.text;
+    // Deep-think mode ON and last user message → append thinking instruction
+    // (o-series use native reasoning, so not needed)
+    if (isLast && m.role === "user" && deepThinkMode && !oSeries) {
+      const thinkInstruction = "\n\n[" + t(lang, "deepThinkInstruction") + "]";
+      if (Array.isArray(content)) {
+        content = content.map((p) =>
+          p.type === "text" ? { ...p, text: p.text + thinkInstruction } : p,
+        );
+      } else {
+        content = (content || "") + thinkInstruction;
+      }
+    }
+    return {
+      role: m.role === "assistant" ? "assistant" : oSeries ? "user" : m.role,
+      content,
+    };
+  });
+  // o-series has no system role (convert to developer role)
+  const systemMsg = oSeries
+    ? { role: "developer", content: buildSystemPrompt(lang) }
+    : { role: "system", content: buildSystemPrompt(lang) };
+  const messages = [systemMsg, ...historyMessages];
+  // Additional parameters for o-series
+  const extraOpts = oSeries ? { reasoning_effort: "medium" } : {};
+  const aiText = await fetchLLMStream(
+    apiEndpoint,
+    apiKey,
+    modelName,
+    messages,
+    (full) => {
+      if (signal.aborted) return;
+      renderAIBubbleContent(aiBubble, bubbleWrap, full);
+      scrollToBottom();
+    },
+    signal,
+    extraOpts,
+  );
+  if (!aiText) aiBubble.innerHTML = markdownToHtml(t(lang, "chatThinking"));
+  return aiText;
+}
+
+// Stream a reply from Chrome's built-in AI (Gemini Nano) into the AI bubble.
+// Returns the full response text ('' when the model is unavailable/downloading).
+async function handleBuiltinChat({
+  aiBubble,
+  bubbleWrap,
+  signal,
+  text,
+  pendingAttachments,
+}) {
+  const session = await createBuiltinSession();
+  if (!session) {
+    aiBubble.textContent = t(lang, "chatUnavailable");
+    return "";
+  }
+  if (session === "downloading") {
+    aiBubble.textContent = t(lang, "downloading");
+    return "";
+  }
+
+  // Build prompt — string for text-only, multipart array when images/audio are attached
+  let builtinPrompt = await buildUserContentWithAttachments(
+    text,
+    pendingAttachments,
+    true,
+  );
+  if (deepThinkMode) {
+    const instruction = "\n\n[" + t(lang, "deepThinkInstruction") + "]";
+    if (Array.isArray(builtinPrompt)) {
+      builtinPrompt = builtinPrompt.map((msg) => ({
+        ...msg,
+        content: msg.content.map((p) =>
+          p.type === "text" ? { ...p, value: p.value + instruction } : p,
+        ),
+      }));
+    } else {
+      builtinPrompt += instruction;
+    }
+  }
+
+  const outLang = CHROME_AI_OUTPUT_LANGS.has(lang) ? lang : "en";
+  const promptOpts = { signal, outputLanguage: outLang };
+
+  let aiText = "";
+  try {
+    if (typeof session.promptStreaming === "function") {
+      const stream = session.promptStreaming(builtinPrompt, promptOpts);
+      let full = "";
+      for await (const chunk of stream) {
+        if (signal.aborted) break;
+        full += chunk;
+        renderAIBubbleContent(aiBubble, bubbleWrap, full);
+        scrollToBottom();
+      }
+      aiText = full;
+    } else {
+      aiText = await session.prompt(builtinPrompt, promptOpts);
+      if (!signal.aborted) renderAIBubbleContent(aiBubble, bubbleWrap, aiText);
+    }
+  } finally {
+    session.destroy?.();
+  }
+  return aiText;
+}
+
 async function sendChat() {
   const text = chatInput.value.trim();
   if ((!text && !attachedFiles.length) || chatBusy) return;
 
-  stopChatSpeak(); // 前のメッセージの読み上げを停止
-  chatAutoScroll = true; // 自分のメッセージ送信時は必ず最下部追従を再開
-  // 添付ファイルをユーザーバブルに表示（pendingAttachments はこの直後に確定）
+  stopChatSpeak(); // Stop read-aloud from the previous message
+  chatAutoScroll = true; // Re-enable auto-scroll when the user sends a message
+  // Show attached files in the user bubble (pendingAttachments are finalized right after this)
   const pendingAttachments = [...attachedFiles];
-  const userContent = buildUserContentWithAttachments(text, pendingAttachments);
-  // displayText: バブル表示用（画像は <img> レンダリングのため base64 込み）
-  const attachPart = pendingAttachments
-    .map((f) =>
-      f.type === "image" ? `![${f.name}](${f.content})` : `📄 ${f.name}`,
-    )
-    .join("\n");
-  const displayText = [text, attachPart].filter(Boolean).join("\n");
-  // storageText: 保存用（base64 省略・ファイル名のみ）
-  const storageText =
-    [
-      text,
-      pendingAttachments
-        .map((f) => (f.type === "image" ? `🖼️ ${f.name}` : `📄 ${f.name}`))
-        .join("\n"),
-    ]
-      .filter(Boolean)
-      .join("\n") || text;
-  addBubble("user", displayText);
+  const userContent = await buildUserContentWithAttachments(
+    text,
+    pendingAttachments,
+  );
+  // Build display attachments: { name, type, url (previewUrl for images), content (Blob/string) }
+  const displayAttachments = pendingAttachments.map((f) => ({
+    name: f.name,
+    type: f.type,
+    url: f.previewUrl ?? null,
+    content: f.content,
+  }));
+  addBubble(
+    "user",
+    text,
+    displayAttachments.length ? displayAttachments : undefined,
+  );
   attachedFiles = [];
   renderAttachPreview();
   chatInput.value = "";
   autoGrowChat();
 
-  // ユーザー発言を履歴に保存（base64 なし）
-  chatHistory.push({ role: "user", text: storageText });
+  // Serialize attachments for persistent history storage
+  const IMAGE_STORE_LIMIT = 2 * 1024 * 1024; // skip images > 2 MB
+  const serializedAttachments = await Promise.all(
+    pendingAttachments.map(async (f) => {
+      if (f.type === "image") {
+        if (f.content.size <= IMAGE_STORE_LIMIT) {
+          try {
+            return {
+              name: f.name,
+              type: "image",
+              dataUrl: await blobToDataUrl(f.content),
+            };
+          } catch {}
+        }
+        return { name: f.name, type: "image" };
+      }
+      if (f.type === "text")
+        return { name: f.name, type: "text", content: f.content };
+      return { name: f.name, type: f.type };
+    }),
+  );
+
+  // Save user message to history (text only; files go in attachments array)
+  chatHistory.push({
+    role: "user",
+    text: text || "",
+    attachments: serializedAttachments.length
+      ? serializedAttachments
+      : undefined,
+  });
   saveChatHistory();
 
   setChatUIBusy(true);
@@ -1304,103 +1781,18 @@ async function sendChat() {
   const signal = chatAbort.signal;
   let aiText = "";
   try {
-    if (aiProvider === "external") {
-      if (!apiEndpoint || !modelName)
-        throw new Error("エンドポイントとモデル名を設定してください");
-      const oSeries = isOSeriesModel(modelName);
-      // 添付ファイルがある場合は最後のメッセージを multipart content に
-      const historyMessages = chatHistory.map((m, idx) => {
-        const isLast = idx === chatHistory.length - 1;
-        let content =
-          isLast && pendingAttachments.length ? userContent : m.text;
-        // 思考モード ON かつ最後のユーザーメッセージ → thinking 指示を付加
-        // （o-series はネイティブ推論なので不要）
-        if (isLast && m.role === "user" && deepThinkMode && !oSeries) {
-          const thinkInstruction =
-            "\n\n[" + t(lang, "deepThinkInstruction") + "]";
-          if (Array.isArray(content)) {
-            content = content.map((p) =>
-              p.type === "text" ? { ...p, text: p.text + thinkInstruction } : p,
-            );
-          } else {
-            content = (content || "") + thinkInstruction;
-          }
-        }
-        return {
-          role:
-            m.role === "assistant" ? "assistant" : oSeries ? "user" : m.role,
-          content,
-        };
-      });
-      // o-series は system ロールなし（developer ロールに変換）
-      const systemMsg = oSeries
-        ? { role: "developer", content: chatSystemPrompt() }
-        : { role: "system", content: chatSystemPrompt() };
-      const messages = [systemMsg, ...historyMessages];
-      // o-series 用追加パラメータ
-      const extraOpts = oSeries ? { reasoning_effort: "medium" } : {};
-      aiText = await fetchLLMStream(
-        apiEndpoint,
-        apiKey,
-        modelName,
-        messages,
-        (full) => {
-          if (signal.aborted) return;
-          renderAIBubbleContent(aiBubble, bubbleWrap, full);
-          scrollToBottom();
-        },
-        signal,
-        extraOpts,
-      );
-      if (!aiText) aiBubble.innerHTML = markdownToHtml(t(lang, "chatThinking"));
-    } else {
-      // 内蔵AIで画像を送ろうとした場合は早期に警告
-      const hasImages = pendingAttachments.some((f) => f.type === "image");
-      if (hasImages) {
-        aiBubble.textContent = t(lang, "builtinNoImage");
-        aiText = aiBubble.textContent;
-      } else {
-        const session = await createBuiltinSession();
-        if (!session) {
-          aiBubble.textContent = t(lang, "chatUnavailable");
-        } else {
-          // builtin AI はテキストのみ対応・コンテキスト制限あり
-          const builtinContent = buildUserContentWithAttachments(
-            text,
-            pendingAttachments,
-            true,
-          );
-          let builtinPrompt =
-            typeof builtinContent === "string"
-              ? builtinContent
-              : builtinContent
-                  .filter((p) => p.type === "text")
-                  .map((p) => p.text)
-                  .join("\n");
-          if (deepThinkMode)
-            builtinPrompt += "\n\n[" + t(lang, "deepThinkInstruction") + "]";
-          try {
-            if (typeof session.promptStreaming === "function") {
-              const stream = session.promptStreaming(builtinPrompt, { signal });
-              let full = "";
-              for await (const chunk of stream) {
-                if (signal.aborted) break; // abort 時はループを即抜ける
-                full += chunk;
-                renderAIBubbleContent(aiBubble, bubbleWrap, full);
-                scrollToBottom();
-              }
-              aiText = full;
-            } else {
-              aiText = await session.prompt(builtinPrompt, { signal });
-              if (!signal.aborted)
-                renderAIBubbleContent(aiBubble, bubbleWrap, aiText);
-            }
-          } finally {
-            session.destroy?.();
-          }
-        }
-      } // end: no-image else
-    }
+    const params = {
+      aiBubble,
+      bubbleWrap,
+      signal,
+      text,
+      pendingAttachments,
+      userContent,
+    };
+    aiText =
+      aiProvider === "external"
+        ? await handleExternalChat(params)
+        : await handleBuiltinChat(params);
   } catch (e) {
     if (e.name !== "AbortError") {
       const msg = e.message || "";
@@ -1410,23 +1802,23 @@ async function sendChat() {
         msg.includes("kErrorInvalidRequest")
       ) {
         friendlyMsg =
-          "⚠️ 入力が長すぎます。添付ファイルのサイズを小さくするか、外部 API をご利用ください。";
+          "⚠️ Input is too long. Please reduce the attachment size or use an external API.";
       } else if (msg.includes("kNotSupported") || msg.includes("unavailable")) {
         friendlyMsg =
-          "⚠️ Chrome 内蔵 AI が利用できません。設定で外部 API に切り替えてください。";
+          "⚠️ Chrome built-in AI is unavailable. Please switch to an external API in settings.";
       } else {
         friendlyMsg = "⚠️ " + msg;
       }
       aiBubble.textContent = friendlyMsg;
     }
-    // 途中テキストを取得（think セクションを除く）
+    // Retrieve the partial text (excluding the think section)
     const msgEl = bubbleWrap?.querySelector(".chat-msg.ai");
     aiText = msgEl
       ? msgEl.dataset.md || msgEl.textContent
       : aiBubble.dataset.md || aiBubble.textContent;
   } finally {
     if (!wasManuallyStopped) {
-      // 通常完了：履歴保存・UI 解除
+      // Normal completion: save history and release UI
       if (aiText && aiText !== t(lang, "chatThinking")) {
         chatHistory.push({ role: "assistant", text: aiText });
         saveChatHistory();
@@ -1436,7 +1828,7 @@ async function sendChat() {
       chatAbort = null;
       setChatUIBusy(false);
     } else {
-      // 手動停止：履歴は停止ボタンハンドラで保存済み・UI 解除済み
+      // Manual stop: history already saved by the stop-button handler, UI already released
       chatAbort = null;
       const msgEl = bubbleWrap?.querySelector(".chat-msg.ai");
       const savedText = msgEl
@@ -1471,7 +1863,7 @@ function autoGrowChat() {
 chatStop.addEventListener("click", () => {
   wasManuallyStopped = true;
 
-  // チャット履歴を即座に保存（setChatUIBusy 解除より先に行う）
+  // Save chat history immediately (before calling setChatUIBusy to release)
   if (activeBubbleWrap) {
     const msgEl = activeBubbleWrap.querySelector(".chat-msg.ai");
     const partialText = msgEl
@@ -1490,141 +1882,7 @@ chatStop.addEventListener("click", () => {
   } catch {}
 });
 
-// ===== 音声入力（サイドパネル直接実行） =====
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-let isRecognizing = false;
-const chatMicBtn = document.getElementById("chatMicBtn");
-let speechBaseText = "";
-let speechFinalTranscript = "";
-
-function getSpeechInputLang() {
-  if (speechLang !== "auto") return speechLang;
-  const map = { ja: "ja-JP", en: "en-US", zh: "zh-CN" };
-  return map[lang] || "ja-JP";
-}
-
-function stopRecognition() {
-  isRecognizing = false;
-  chatMicBtn?.classList.remove("recording");
-  chatInput.placeholder = t(lang, "chatPlaceholder");
-  try {
-    recognition?.abort();
-  } catch {}
-  recognition = null;
-}
-
-function showSpeechError(code) {
-  const errMap = {
-    "not-allowed": t(lang, "speechErrPermission"),
-    "service-not-allowed": t(lang, "speechErrPermission"),
-    network: t(lang, "speechErrNetwork"),
-    "no-speech": t(lang, "speechErrNoSpeech"),
-    unsupported: t(lang, "speechErrUnsupported"),
-  };
-  const msg = errMap[code] || `🎤 ${code}`;
-  let toast = document.getElementById("speechErrorToast");
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.id = "speechErrorToast";
-    toast.className = "speech-error-toast";
-    // chatFooter が取得できない場合は body に fallback
-    const footer = document.getElementById("chatFooter") || document.body;
-    footer.prepend(toast);
-  }
-  toast.textContent = msg;
-  toast.classList.add("visible");
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => toast.classList.remove("visible"), 6000);
-}
-
-function startRecognition() {
-  speechBaseText = chatInput.value;
-  speechFinalTranscript = "";
-
-  recognition = new SR();
-  recognition.lang = getSpeechInputLang();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
-
-  recognition.onstart = () => {
-    isRecognizing = true;
-    chatMicBtn.classList.add("recording");
-    chatInput.placeholder = t(lang, "speechRecording");
-  };
-
-  recognition.onresult = (e) => {
-    let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal)
-        speechFinalTranscript += e.results[i][0].transcript;
-      else interim += e.results[i][0].transcript;
-    }
-    chatInput.value = speechBaseText + speechFinalTranscript + interim;
-    autoGrowChat();
-  };
-
-  recognition.onerror = (e) => {
-    isRecognizing = false;
-    chatMicBtn.classList.remove("recording");
-    recognition = null;
-    if (e.error !== "aborted") showSpeechError(e.error);
-    else chatInput.placeholder = t(lang, "chatPlaceholder");
-  };
-
-  recognition.onend = () => {
-    if (isRecognizing) {
-      try {
-        recognition.start();
-        return;
-      } catch {}
-    }
-    chatInput.value = speechBaseText + speechFinalTranscript;
-    autoGrowChat();
-    chatInput.focus();
-    isRecognizing = false;
-    chatMicBtn.classList.remove("recording");
-    chatInput.placeholder = t(lang, "chatPlaceholder");
-    recognition = null;
-  };
-
-  recognition.start();
-}
-
-if (chatMicBtn) {
-  chatMicBtn.addEventListener("click", async () => {
-    if (isRecognizing) {
-      stopRecognition();
-      return;
-    }
-    if (!SR) {
-      showSpeechError("unsupported");
-      return;
-    }
-
-    // getUserMedia でマイク権限を先取得してから SpeechRecognition を起動
-    if (navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
-        stream.getTracks().forEach((t) => t.stop());
-      } catch (err) {
-        const code =
-          err.name === "NotAllowedError" || err.name === "PermissionDeniedError"
-            ? "not-allowed"
-            : "network";
-        showSpeechError(code);
-        return;
-      }
-    }
-
-    startRecognition();
-  });
-}
-
-// ===== 思考モード（Deep Think） =====
+// ===== Deep Think mode =====
 let deepThinkMode = false;
 const chatThinkBtn = document.getElementById("chatThinkBtn");
 
@@ -1640,7 +1898,7 @@ chatThinkBtn?.addEventListener("click", () => {
 chatSend.addEventListener("click", sendChat);
 chatInput.addEventListener("input", autoGrowChat);
 
-// スクリーンショット貼り付け（Ctrl+V）
+// Screenshot paste (Ctrl+V)
 chatInput.addEventListener("paste", (e) => {
   const items = e.clipboardData?.items;
   if (!items) return;
@@ -1650,26 +1908,81 @@ chatInput.addEventListener("paste", (e) => {
     if (attachedFiles.length >= 4) return;
     const blob = item.getAsFile();
     if (!blob) continue;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const name = `screenshot_${Date.now()}.png`;
-      attachedFiles.push({ name, type: "image", content: reader.result });
-      renderAttachPreview();
-    };
-    reader.readAsDataURL(blob);
-    return; // 1枚ずつ処理
+    const name = `screenshot_${Date.now()}.png`;
+    const previewUrl = URL.createObjectURL(blob);
+    attachedFiles.push({ name, type: "image", content: blob, previewUrl });
+    renderAttachPreview();
+    return; // Process one image at a time
   }
 });
 
 chatInput.addEventListener("keydown", (e) => {
-  // Ctrl+Enter または Cmd+Enter で送信、Enterのみは改行
+  // Ctrl+Enter or Cmd+Enter to send; plain Enter inserts a newline
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     sendChat();
   }
 });
 
-// ===== サイドバー（フォルダ・複数選択対応） =====
+// Image lightbox — click .md-img to enlarge
+chatMessages.addEventListener("click", (e) => {
+  const img = e.target.closest(".md-img");
+  if (!img) return;
+  const overlay = document.createElement("div");
+  overlay.className = "img-lightbox";
+  const enlarged = document.createElement("img");
+  enlarged.src = img.src;
+  enlarged.alt = img.alt;
+  overlay.appendChild(enlarged);
+  const dlLink = document.createElement("a");
+  dlLink.href = img.src;
+  dlLink.download = img.alt || "image";
+  dlLink.className = "lightbox-dl-btn";
+  dlLink.innerHTML = ICONS.download;
+  dlLink.title = "Download";
+  dlLink.addEventListener("click", (ev) => ev.stopPropagation());
+  overlay.appendChild(dlLink);
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (ke) => {
+    if (ke.key === "Escape") close();
+  };
+  overlay.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+});
+
+// ===== Guide Overlay =====
+const helpBtn = document.getElementById("helpBtn");
+const screenGuide = document.getElementById("screen-guide");
+const guideCloseBtn = document.getElementById("guideCloseBtn");
+
+helpBtn.addEventListener("click", () => {
+  screenGuide.hidden = false;
+});
+
+guideCloseBtn.addEventListener("click", () => {
+  screenGuide.hidden = true;
+});
+
+document.querySelectorAll(".guide-tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document
+      .querySelectorAll(".guide-tab-btn")
+      .forEach((b) => b.classList.remove("active"));
+    document
+      .querySelectorAll(".guide-panel")
+      .forEach((p) => p.classList.remove("active"));
+    btn.classList.add("active");
+    document
+      .getElementById(`guide-panel-${btn.dataset.tab}`)
+      .classList.add("active");
+  });
+});
+
+// ===== Sidebar (folder and multi-select support) =====
 const CHAT_FOLDERS_KEY = "chatFolders";
 let chatFolders = [];
 let sidebarSelectMode = false;
@@ -1698,7 +2011,7 @@ function renderSidebarItem(s) {
   }
   return `<div class="sidebar-item${isActive ? " active" : ""}" data-id="${s.id}" draggable="true">
     <div class="sidebar-title">${escapeHtml(s.title)}</div>
-    <button class="sidebar-menu-btn" data-id="${s.id}" title="メニュー">${ICONS.ellipsisVertical}</button>
+    <button class="sidebar-menu-btn" data-id="${s.id}" title="Menu">${ICONS.ellipsisVertical}</button>
   </div>`;
 }
 
@@ -1730,7 +2043,7 @@ function renderSidebar() {
         <span class="folder-toggle">${isCollapsed ? ICONS.chevronRight : ICONS.chevronDown}</span>
         <span class="folder-name">${escapeHtml(folder.name)}</span>
         <span class="folder-count">${folderSessions.length}</span>
-        <button class="folder-menu-btn" data-folder-id="${folder.id}" title="メニュー">${ICONS.ellipsisVertical}</button>
+        <button class="folder-menu-btn" data-folder-id="${folder.id}" title="Menu">${ICONS.ellipsisVertical}</button>
       </div>`;
       if (!isCollapsed) {
         if (folderSessions.length === 0) {
@@ -1780,8 +2093,8 @@ function startCreateFolder() {
   const row = document.createElement("div");
   row.className = "sidebar-folder-create";
   row.innerHTML = `<input type="text" class="sidebar-folder-input" maxlength="20" placeholder="${escapeHtml(t(lang, "folderNamePlaceholder"))}">
-    <button class="sidebar-folder-ok" title="確定">${ICONS.check}</button>
-    <button class="sidebar-folder-cancel" title="キャンセル">${ICONS.xMark}</button>`;
+    <button class="sidebar-folder-ok" title="OK">${ICONS.check}</button>
+    <button class="sidebar-folder-cancel" title="Cancel">${ICONS.xMark}</button>`;
   toolbar.after(row);
   const inp = row.querySelector("input");
   inp.focus();
@@ -1807,11 +2120,11 @@ function startFolderRename(folderId, headerEl) {
   const folder = chatFolders.find((f) => f.id === folderId);
   if (!folder || !headerEl) return;
 
-  // フォルダヘッダーをインライン入力に置き換え
+  // Replace the folder header with an inline input
   headerEl.innerHTML = `
     <input type="text" class="sidebar-folder-input" value="${escapeHtml(folder.name)}" maxlength="20">
-    <button class="sidebar-folder-ok" title="確定">${ICONS.check}</button>
-    <button class="sidebar-folder-cancel" title="キャンセル">${ICONS.xMark}</button>`;
+    <button class="sidebar-folder-ok" title="OK">${ICONS.check}</button>
+    <button class="sidebar-folder-cancel" title="Cancel">${ICONS.xMark}</button>`;
   const inp = headerEl.querySelector("input");
   inp.focus();
   inp.select();
@@ -1898,7 +2211,7 @@ document.getElementById("folderPickerNone").addEventListener("click", () => {
   folderPickerTargetId = null;
 });
 
-// ===== サイドバー コンテキストメニュー =====
+// ===== Sidebar context menu =====
 let sidebarMenuTargetId = null;
 
 function getSidebarMenu() {
@@ -2007,7 +2320,7 @@ function showFolderMenu(folderId, anchorEl) {
       }
     });
   }
-  menu.innerHTML = `<button class="sidebar-menu-item" data-action="rename">${ICONS.pencil} リネーム</button>
+  menu.innerHTML = `<button class="sidebar-menu-item" data-action="rename">${ICONS.pencil} Rename</button>
     <div class="sidebar-menu-divider"></div>
     <button class="sidebar-menu-item danger" data-action="delete">${ICONS.trash} ${escapeHtml(t(lang, "confirmDeleteBtn"))}</button>`;
   folderMenuTargetId = folderId;
@@ -2045,7 +2358,7 @@ sidebarList.addEventListener("contextmenu", (e) => {
   showSidebarMenu(Number(item.dataset.id), menuBtn);
 });
 
-// ===== サイドバー ドラッグ＆ドロップ =====
+// ===== Sidebar drag and drop =====
 let draggedSessionId = null;
 
 sidebarList.addEventListener("dragstart", (e) => {
@@ -2136,7 +2449,7 @@ sidebarList.addEventListener("click", async (e) => {
   }
 });
 
-// ===== 確認ダイアログ =====
+// ===== Confirmation dialog =====
 const confirmModal = document.getElementById("confirmModal");
 const confirmMsg = document.getElementById("confirmMsg");
 const confirmOk = document.getElementById("confirmOk");
@@ -2171,7 +2484,7 @@ confirmModal.addEventListener("click", (e) => {
   }
 });
 
-// ===== お気に入りパネル =====
+// ===== Favorites panel =====
 let favSelectMode = false;
 const favSelectedIdxs = new Set();
 
@@ -2195,7 +2508,7 @@ function renderFavorites() {
       <div class="fav-select-bar">
         <span class="fav-sel-count">${
           favSelectedIdxs.size > 0
-            ? `${favSelectedIdxs.size}${t(lang, "countSuffix")}選択中`
+            ? `${favSelectedIdxs.size} selected`
             : t(lang, "selectMode")
         }</span>
         <button class="fav-del-sel-btn" id="favDeleteSelectedBtn"
@@ -2267,7 +2580,7 @@ function renderFavorites() {
 }
 
 favBtn.addEventListener("click", () => {
-  // お気に入りと会話履歴を同時に表示
+  // Show favorites and conversation history side by side
   if (!chatSidebar.classList.contains("open")) {
     chatSidebar.classList.add("open");
     sidebarToggle.innerHTML = ICONS.xMark;
@@ -2305,7 +2618,7 @@ document
   });
 
 favList.addEventListener("click", async (e) => {
-  // 選択モード: アイテムをクリックで選択トグル
+  // Select mode: click an item to toggle selection
   if (favSelectMode) {
     const item = e.target.closest(".fav-item.selectable");
     if (item) {
@@ -2320,19 +2633,17 @@ favList.addEventListener("click", async (e) => {
   const copyBtn = e.target.closest(".fav-copy-btn");
   if (copyBtn) {
     const idx = Number(copyBtn.dataset.idx);
-    chrome.storage.local.get({ chatFavorites: [] }, (data) => {
+    chrome.storage.local.get({ chatFavorites: [] }, async (data) => {
       const f = data.chatFavorites[idx];
       if (!f) return;
-      navigator.clipboard
-        .writeText(f.text)
-        .then(() => {
-          const orig = copyBtn.innerHTML;
-          copyBtn.innerHTML = ICONS.check;
-          setTimeout(() => {
-            copyBtn.innerHTML = orig;
-          }, 1500);
-        })
-        .catch(() => {});
+      try {
+        await navigator.clipboard.writeText(f.text);
+        const orig = copyBtn.innerHTML;
+        copyBtn.innerHTML = ICONS.check;
+        setTimeout(() => {
+          copyBtn.innerHTML = orig;
+        }, 1500);
+      } catch {}
     });
     return;
   }
@@ -2350,7 +2661,7 @@ favList.addEventListener("click", async (e) => {
   });
 });
 
-// ===== 設定タブ切り替え =====
+// ===== Settings tab switching =====
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const tab = btn.dataset.tab;
@@ -2365,16 +2676,16 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
-// ===== 新しい会話ボタン =====
+// ===== New conversation button =====
 newChatBtn.addEventListener("click", newConversation);
 
-// 起動時: 保存済みセッション・フォルダを読み込み
+// On startup: load saved sessions and folders
 chrome.storage.local.get(
   { [CHAT_SESSIONS_KEY]: [], [CHAT_FOLDERS_KEY]: [] },
   (data) => {
     chatSessions = data[CHAT_SESSIONS_KEY];
     chatFolders = data[CHAT_FOLDERS_KEY];
-    // 常に新しいチャットとして開始（過去の会話はサイドバーから選択）
+    // Always start with a new chat (past conversations are available from the sidebar)
     activeSessionId = null;
     chatHistory = [];
     renderChatEmpty();

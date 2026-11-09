@@ -1,11 +1,11 @@
-// OpenAI互換 API のストリーミング呼び出し
-// endpoint: "https://api.openai.com/v1" / "http://localhost:11434/v1" など
-// apiKey  : APIキー（Ollama など不要な場合は空文字）
-// model   : "gpt-4o-mini" / "llama3.2" など
+// OpenAI-compatible API streaming call
+// endpoint: "https://api.openai.com/v1" / "http://localhost:11434/v1" etc.
+// apiKey  : API key (pass empty string if not required, e.g. Ollama)
+// model   : "gpt-4o-mini" / "llama3.2" etc.
 // messages: [{role, content}]
-// onChunk : (fullTextSoFar: string) => void  — 逐次コールバック
-// signal  : AbortSignal（省略可）
-// options : { max_tokens?, temperature? } など追加パラメータ
+// onChunk : (fullTextSoFar: string) => void  — incremental callback
+// signal  : AbortSignal (optional)
+// options : additional parameters such as { max_tokens?, temperature? }
 
 async function fetchLLMStream(
   endpoint,
@@ -35,13 +35,13 @@ async function fetchLLMStream(
 
   const reader = resp.body.getReader();
   const dec = new TextDecoder();
-  let reasoningFull = ""; // o-series の reasoning_content
-  let contentFull = ""; // 通常の content
+  let reasoningFull = ""; // o-series reasoning_content
+  let contentFull = ""; // regular content
   let buf = "";
   let finished = false;
 
-  // contentFull がまだ空 = reasoning ストリーミング中 → タグを開けたまま（partial 扱い）
-  // contentFull が届き始めたら閉じる → parseThinking が complete と判定
+  // While contentFull is still empty, reasoning is streaming — leave the tag open (treated as partial).
+  // Once contentFull starts arriving, close the tag so parseThinking treats it as complete.
   const buildFull = () => {
     if (!reasoningFull) return contentFull;
     if (!contentFull) return `<think>${reasoningFull}`;
@@ -67,7 +67,7 @@ async function fetchLLMStream(
         try {
           const delta = JSON.parse(raw).choices?.[0]?.delta;
           if (!delta) continue;
-          // o-series: reasoning_content（思考）と content（回答）を分けて収集
+          // o-series: collect reasoning_content (thinking) and content (answer) separately
           if (delta.reasoning_content) {
             reasoningFull += delta.reasoning_content;
             onChunk(buildFull());
@@ -76,13 +76,13 @@ async function fetchLLMStream(
             onChunk(buildFull());
           }
         } catch {
-          /* JSON不完全な断片は無視 */
+          /* ignore incomplete JSON fragments */
         }
       }
-      if (finished) break; // [DONE] 受信後は接続を待たずに即終了
+      if (finished) break; // exit immediately after [DONE] without waiting for the stream to close
     }
   } finally {
-    reader.cancel().catch(() => {}); // ストリームを確実に解放
+    reader.cancel().catch(() => {}); // always release the stream
   }
 
   return buildFull();

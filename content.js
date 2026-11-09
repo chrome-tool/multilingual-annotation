@@ -79,24 +79,12 @@ function applyTooltipTheme() {
 }
 
 // ===== AI Session =====
-function buildSystemPrompt(targetLang) {
-  const name = t(targetLang, "aiLangName");
-  return `You translate and explain text for a language learner. Output language: ${name}.
-
-Output ONLY the explanation itself. No preamble like "Here is", no quotes around your answer, no markdown, no extra blank lines.
-
-Decide the type of the input and respond accordingly:
-- Single word or short phrase: on line 1 give the ${name} meaning; on line 2 give the part of speech and one short example of use.
-- Full sentence or longer text: give only a natural ${name} translation.
-- If the input is already in ${name}: briefly paraphrase or define it in ${name}.
-
-Keep it to 3 short lines maximum. Be direct and concrete.`;
-}
-
 function resetSession() {
   try {
     aiSession?.destroy?.();
-  } catch {}
+  } catch {
+    /* ignore destroy errors */
+  }
   aiSession = null;
   sessionPromise = null;
   cache.clear();
@@ -108,31 +96,26 @@ async function getAISession() {
   if (aiSession) return aiSession;
   if (sessionPromise) return sessionPromise;
 
-  const api =
-    self.LanguageModel ?? window.ai?.languageModel ?? window.ai?.assistant;
-  if (!api) return null;
+  if (!getLanguageModelAPI()) return null;
 
-  const systemPrompt = buildSystemPrompt(lang);
-  sessionPromise = api
-    .create({
-      initialPrompts: [{ role: "system", content: systemPrompt }],
-      systemPrompt,
-      monitor(m) {
-        m.addEventListener("downloadprogress", (e) => {
-          const pct = Math.round((e.loaded ?? 0) * 100);
-          if (downloadProgressCallback) downloadProgressCallback(pct);
-        });
-      },
-    })
-    .then((s) => {
+  sessionPromise = (async () => {
+    try {
+      const s = await createAISession(lang, {
+        monitor(m) {
+          m.addEventListener("downloadprogress", (e) => {
+            const pct = Math.round((e.loaded ?? 0) * 100);
+            if (downloadProgressCallback) downloadProgressCallback(pct);
+          });
+        },
+      });
       aiSession = s;
       return s;
-    })
-    .catch((e) => {
-      console.warn("[多言語注釈] セッション作成失敗:", e);
+    } catch (e) {
+      console.warn("[multilingual-annotation] Failed to create AI session:", e);
       sessionPromise = null;
       return null;
-    });
+    }
+  })();
 
   return sessionPromise;
 }
@@ -143,7 +126,14 @@ async function warmSession() {
 }
 
 // Serializes prompts; skips if isStale() while waiting in queue
-async function streamPrompt(session, text, onChunk, signal, isStale) {
+async function streamPrompt(
+  session,
+  text,
+  onChunk,
+  signal,
+  isStale,
+  outputLang,
+) {
   while (promptLock) {
     try {
       await promptLock;
@@ -158,9 +148,13 @@ async function streamPrompt(session, text, onChunk, signal, isStale) {
 
   try {
     if (isStale?.()) return null;
-    const query = `Explain this text: "${text}"`;
-    const opts = signal ? { signal } : undefined;
+    const query = text;
+    const opts = {
+      ...(signal ? { signal } : {}),
+      ...(outputLang ? { outputLanguage: outputLang } : {}),
+    };
 
+    // Built-in AI (Chrome Gemini Nano): chunks are cumulative, not deltas
     if (typeof session.promptStreaming === "function") {
       const stream = session.promptStreaming(query, opts);
       let full = "";
@@ -171,6 +165,7 @@ async function streamPrompt(session, text, onChunk, signal, isStale) {
       return full;
     }
 
+    // Built-in AI fallback: non-streaming prompt
     const result = await session.prompt(query, opts);
     onChunk(result);
     return result;
@@ -250,7 +245,39 @@ function buildAnnotationHTML(word, bodyHtml, streaming = false) {
 }
 
 function rawToBodyHtml(raw) {
-  return escapeHtml(raw).replace(/\n/g, "<br>");
+  let s = escapeHtml(raw);
+  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+
+  const lines = s.split("\n");
+  let html = "";
+  let listTag = null;
+  for (const line of lines) {
+    const bullet = line.match(/^[-*]\s+(.+)/);
+    const ordered = line.match(/^\d+\.\s+(.+)/);
+    const tag = bullet ? "ul" : ordered ? "ol" : null;
+    const content = bullet?.[1] ?? ordered?.[1];
+    if (tag) {
+      if (listTag !== tag) {
+        if (listTag) html += `</${listTag}>`;
+        html += `<${tag}>`;
+        listTag = tag;
+      }
+      html += `<li>${content}</li>`;
+    } else if (listTag && !line.trim()) {
+      // blank line inside a list — skip without closing
+    } else {
+      if (listTag) {
+        html += `</${listTag}>`;
+        listTag = null;
+      }
+      if (html) html += "<br>";
+      html += line;
+    }
+  }
+  if (listTag) html += `</${listTag}>`;
+  return html;
 }
 
 function loadingBodyHtml(msg) {
@@ -283,7 +310,7 @@ function escapeHtml(s) {
 }
 
 // ===== Button Handlers =====
-function onTooltipClick(e) {
+async function onTooltipClick(e) {
   const btn = e.target.closest("[data-action]");
   if (!btn) return;
   const action = btn.dataset.action;
@@ -305,9 +332,8 @@ function onTooltipClick(e) {
   if (action === "speak") {
     speakWordAndExplanation(word, raw, btn);
   } else if (action === "copy") {
-    navigator.clipboard
-      .writeText(`${word}\n${raw}`)
-      .then(() => flashButton(btn));
+    await navigator.clipboard.writeText(`${word}\n${raw}`);
+    flashButton(btn);
   } else if (action === "save") {
     chrome.storage.local.get({ vocabulary: [] }, (data) => {
       const list = data.vocabulary;
@@ -368,7 +394,7 @@ function stopTooltipSpeak() {
 function speakWordAndExplanation(word, raw, btn) {
   if (!window.speechSynthesis) return;
 
-  // 同じボタン再クリック → 停止
+  // Same button clicked again → stop
   if (btn.dataset.speaking) {
     stopTooltipSpeak();
     return;
@@ -418,7 +444,7 @@ function getWordAtPoint(x, y) {
 
 // ===== Core Annotation =====
 async function annotate(text, x, y) {
-  stopTooltipSpeak(); // 前の再生を止めてから新しい注釈を表示
+  stopTooltipSpeak(); // Stop any active speech before showing new annotation
   const myId = ++requestSeq;
   abortCurrent();
 
@@ -475,6 +501,7 @@ async function annotateBuiltin(text, myId, signal) {
     return null;
   }
 
+  const outputLang = CHROME_AI_OUTPUT_LANGS.has(lang) ? lang : undefined;
   return streamPrompt(
     session,
     text,
@@ -485,13 +512,14 @@ async function annotateBuiltin(text, myId, signal) {
     },
     signal,
     () => myId !== requestSeq,
+    outputLang,
   );
 }
 
 async function annotateExternal(text, myId, signal) {
   if (!apiEndpoint || !modelName) {
     updateAnnotationBodyHtml(
-      errorBodyHtml("⚠️ エンドポイントとモデル名を設定してください"),
+      errorBodyHtml(t(lang, "externalApiNotConfigured")),
     );
     removeStopButton();
     return null;
@@ -499,7 +527,7 @@ async function annotateExternal(text, myId, signal) {
 
   const messages = [
     { role: "system", content: buildSystemPrompt(lang) },
-    { role: "user", content: `Explain this text: "${text}"` },
+    { role: "user", content: `"${text}"` },
   ];
 
   return fetchLLMStream(

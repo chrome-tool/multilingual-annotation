@@ -56,9 +56,7 @@
   pointer-events: auto;
   opacity: 0;
   transform: translateY(4px);
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 #ml-annotation-tooltip:not(.visible) {
@@ -82,6 +80,24 @@
 #ml-annotation-tooltip .ml-body {
   color: var(--fg);
   font-size: 12.5px;
+}
+
+#ml-annotation-tooltip .ml-body ul,
+#ml-annotation-tooltip .ml-body ol {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+
+#ml-annotation-tooltip .ml-body li {
+  margin: 1px 0;
+}
+
+#ml-annotation-tooltip .ml-body code {
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 11.5px;
+  font-family: "Consolas", "Menlo", monospace;
 }
 
 #ml-annotation-tooltip .ml-loading {

@@ -1,48 +1,50 @@
-importScripts("i18n.js");
+importScripts('i18n.js');
 
-const DEFAULT_LANG = "en";
+const DEFAULT_LANG = 'ja';
 
-// 現在の言語で右クリックメニューを作り直す
-function refreshContextMenu() {
+
+// Rebuild the context menu in the current language
+async function refreshContextMenu() {
+  await localeReady;
   chrome.storage.sync.get({ lang: DEFAULT_LANG }, ({ lang }) => {
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({
-        id: "ml-annotate",
-        title: t(lang, "ctxMenuTitle"),
-        contexts: ["selection"],
+        id: 'ml-annotate',
+        title: t(lang, 'ctxMenuTitle'),
+        contexts: ['selection']
       });
     });
   });
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  // ツールバーアイコンのクリックでサイドパネルを開く
+  // Open the side panel when the toolbar icon is clicked
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
-    .catch((e) => console.warn("sidePanel 設定失敗:", e));
+    .catch((e) => console.warn('sidePanel setup failed:', e));
 
   refreshContextMenu();
 });
 
-// 言語が変わったらメニューの文言も更新
+// Rebuild menu text when the user changes the language
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && changes.lang) refreshContextMenu();
+  if (area === 'sync' && changes.lang) refreshContextMenu();
 });
 
-// メニュークリック → 選択テキストをコンテンツスクリプトへ送る
+// Context menu click → forward selected text to the content script
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "ml-annotate" && tab?.id) {
+  if (info.menuItemId === 'ml-annotate' && tab?.id) {
     chrome.tabs.sendMessage(tab.id, {
-      type: "annotate-selection",
-      text: info.selectionText,
+      type: 'annotate-selection',
+      text: info.selectionText
     });
   }
 });
 
-// キーボードショートカット（Alt+A）→ ページ側の選択範囲を解析
+// Keyboard shortcut (Alt+A) → ask the active page to analyze its selection
 chrome.commands.onCommand.addListener((command) => {
-  if (command !== "annotate-selection") return;
+  if (command !== 'annotate-selection') return;
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "annotate-shortcut" });
+    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: 'annotate-shortcut' });
   });
 });

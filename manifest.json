@@ -1,32 +1,56 @@
 {
   "manifest_version": 3,
-  "name": "多言語リアルタイム注釈 / Multilingual Live Annotation",
+  "name": "__MSG_extensionName__",
   "version": "1.1.0",
-  "description": "Select text on any web page and get live annotations in your chosen language, powered by Chrome built-in AI or any OpenAI-compatible API.",
-  "permissions": ["storage", "contextMenus", "sidePanel"],
-  "host_permissions": ["<all_urls>"],
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "sidePanel",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["i18n.js", "icons.js", "llm.js", "content.js"],
-      "css": ["tooltip.css"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "i18n.js",
+        "icons.js",
+        "llm.js",
+        "prompts.js",
+        "content.js"
+      ],
+      "css": [
+        "tooltip.css"
+      ]
     }
   ],
   "action": {
-    "default_title": "多言語リアルタイム注釈（クリックでパネルを開く）"
+    "default_title": "__MSG_actionTitle__"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["_locales/*/messages.json"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "commands": {
     "annotate-selection": {
       "suggested_key": {
         "default": "Alt+A"
       },
-      "description": "選択したテキストを解析 / Analyze selected text"
+      "description": "__MSG_annotateCommand__"
     }
   }
 }
